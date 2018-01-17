@@ -103,7 +103,7 @@ class BinanceBot:
                 # symbol_limits = api_limits['symbols']
 
 
-    EXCLUDE_LIST = ['BCD']
+    EXCLUDE_LIST = ['BCD','TRX']
     def get_24hr_volume(self):
         high_volume_coins = []
         ticker = self.client.get_ticker()
