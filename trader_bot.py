@@ -448,7 +448,7 @@ class VolatilityBot(BinanceBot):
                                 continue
                             self.t0 = datetime.now()
                         else:
-                            time.sleep(1)
+                            time.sleep(5)
                             #self.impatience_level = 2
                     # 15-20 mins - limit 3x
                     # elif waiting.total_seconds() > 2 * 60 and self.impatience_level == 2:
@@ -570,7 +570,7 @@ class VolatilityBot(BinanceBot):
         asks = [[float(x), float(y)] for [x, y, z] in current_coin.books['ETH']['asks']]
         spot_in_queue = 1
         for a in asks:
-            if(a[0] == price and a[1] == qty):
+            if(a[0] == price):# and a[1] == qty):
                 break
             spot_in_queue += 1
         print('Spot in Queue: %i' % spot_in_queue)
