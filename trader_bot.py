@@ -11,8 +11,8 @@ import os
 import json
 import collections
 import atexit
-
-
+import config
+import smtplib
 class ExceptionRetry(object):
     def __init__(self, arg):
         self.arg = arg
@@ -103,13 +103,13 @@ class BinanceBot:
                 # symbol_limits = api_limits['symbols']
 
 
-    EXCLUDE_LIST = ['BCD','TRX']
+    EXCLUDE_LIST = ['BCD','TRX','VEN']
     def get_24hr_volume(self):
         high_volume_coins = []
         ticker = self.client.get_ticker()
         for t in ticker:
             if 'ETH' in t['symbol'][-3:]:
-                if float(t['quoteVolume']) > 20000 and t['symbol'][0:3] not in self.EXCLUDE_LIST:
+                if float(t['quoteVolume']) > 22000 and t['symbol'][0:3] not in self.EXCLUDE_LIST:
                     high_volume_coins.append(t['symbol'][:-3])
         print('Coins of Interest:')
         self.pp.pprint(high_volume_coins)
@@ -126,7 +126,25 @@ class BinanceBot:
                                  'value (eth), value (btc), value (usd)'])
             # data_list = ['date', 'holding symbol', 'trade pair', 'type', 'quantity', 'price', 'fee', 'value (eth), 'value (usd)']
             writer.writerow(data_list)
+    def send_email(self):
+        print('sending email')
+        gmail_user = config.EMAIL_USER
+        gmail_pwd = config.EMAIL_PASSWORD
+        FROM = config.EMAIL_USER
+        TO = config.EMAIL_RECP
+        SUBJECT = 'Bot is dead'
+        TEXT = 'Please Fix'
 
+        # Prepare actual message
+        message = """From: %s\nTo: %s\nSubject: %s\n\n%s
+        """ % (FROM, TO, SUBJECT, TEXT)
+
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.ehlo()
+        server.starttls()
+        server.login(gmail_user, gmail_pwd)
+        server.sendmail(FROM, TO, message)
+        server.close()
     def trade_buy(self, trade_pair, qty, bid_price=None):
         if bid_price is None:  # market order
             self.current_order = self.client.order_market_buy(symbol=trade_pair, quantity=qty,
@@ -311,6 +329,7 @@ class VolatilityBot(BinanceBot):
         self.minimum_trade_value = 1.1 * self.current_holding_value * (2 * self.trade_fee)  # this is in ETH
 
     def exit(self):
+        self.send_email()
         # check if we are holding ETH
         if self.current_holding not in 'ETH':
             # if not sell that shit
@@ -428,17 +447,19 @@ class VolatilityBot(BinanceBot):
                         #print("Getting a new price .... ")
                         sell_price = self.get_new_sell_price(current_coin,current_q,
                                                              current_ask_price,break_even_delta)
-
-                        if(sell_price != current_ask_price_unsantized):
-                            current_ask_price_unsantized = sell_price
+                        (q, p) = current_coin.sanitize(current_coin.sym + 'ETH',
+                                                           qty=self.current_holding_qty,
+                                                           price = sell_price)
+                        if(p != current_ask_price):
+                            #current_ask_price_unsantized = sell_price
                             print('Resetting price: prev:%.8f, new: %.8f' % (current_ask_price,sell_price))
                             #current_ask_price = sell_price
                             # cancel current order
                             self.cancel_order(current_coin.sym + 'ETH')
                             # place new order at current_price
-                            (q, p) = current_coin.sanitize(current_coin.sym + 'ETH',
-                                                           qty=self.current_holding_qty,
-                                                           price = sell_price)
+                            # (q, p) = current_coin.sanitize(current_coin.sym + 'ETH',
+                            #                                qty=self.current_holding_qty,
+                            #                                price = sell_price)
                             current_ask_price = p
                             current_q = q
                             if self.trade_sell(current_coin.sym+'ETH', q, p):
@@ -449,6 +470,7 @@ class VolatilityBot(BinanceBot):
                             self.t0 = datetime.now()
                         else:
                             time.sleep(5)
+                            continue
                             #self.impatience_level = 2
                     # 15-20 mins - limit 3x
                     # elif waiting.total_seconds() > 2 * 60 and self.impatience_level == 2:
@@ -516,7 +538,7 @@ class VolatilityBot(BinanceBot):
                         (bid_depth, ask_depth) = current_coin.order_depth(trade_pair.replace(current_coin.sym, ""),
                                                                           self.current_holding_qty, True)
                         depth_dict[trade_pair] = float(bid_depth) / float(ask_depth)
-                    allowed_pairs = [c for c in depth_dict if depth_dict[c] > 2.5]
+                    allowed_pairs = [c for c in depth_dict if depth_dict[c] > 1.5]
                     if len(allowed_pairs) == 0:
                         allowed_pairs.append(min([x + current_coin.sym for x in current_coin.pairs if x not in 'USDT'],
                                                  key=(lambda k: self.deltas[k])))
@@ -573,7 +595,7 @@ class VolatilityBot(BinanceBot):
             if(a[0] == price):# and a[1] == qty):
                 break
             spot_in_queue += 1
-        print('Spot in Queue: %i' % spot_in_queue)
+        print('Spot in Queue: %i' % spot_in_queue,end="\r")
         if(spot_in_queue > queue_limit):
             min_sell_price = self.purchase_values[current_coin.sym + 'ETH'] + 2.5 * break_even_delta
             sell_price = min_sell_price
