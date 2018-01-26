@@ -103,13 +103,13 @@ class BinanceBot:
                 # symbol_limits = api_limits['symbols']
 
 
-    EXCLUDE_LIST = ['BCD','TRX','VEN']
+    EXCLUDE_LIST = ['BCD','TRX','VEN','IOST']
     def get_24hr_volume(self):
         high_volume_coins = []
         ticker = self.client.get_ticker()
         for t in ticker:
             if 'ETH' in t['symbol'][-3:]:
-                if float(t['quoteVolume']) > 22000 and t['symbol'][0:3] not in self.EXCLUDE_LIST:
+                if float(t['quoteVolume']) > 20000 and t['symbol'][:-3] not in self.EXCLUDE_LIST:
                     high_volume_coins.append(t['symbol'][:-3])
         print('Coins of Interest:')
         self.pp.pprint(high_volume_coins)
